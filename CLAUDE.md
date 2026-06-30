@@ -60,3 +60,14 @@ This will help maintainers review and ultimately resolve and merge contributions
 ## context
 
 - always use progressive disclosure when designing agentic systems
+
+## TORICO fork (this repo: `torico-tokyo/screenpipe`)
+This is a fork whose only shipping artifact is the patched CLI binary, published
+to npm under the **`@torico`** scope (org `torico`, unrelated to the GitHub org
+`torico-tokyo`). It adds record flags `--disable-a11y-tree` /
+`--tree-max-elements <N>` / `--tree-max-depth <N>` for the Windows
+`torico-worktime-aggregation` app. Before touching `packages/cli/**`,
+`.github/workflows/release-cli.yml`, or the record/a11y code — or cutting a
+release — read **`packages/cli/TORICO-FORK.md`** (scope, published packages,
+release process, the windows-only resilient-publish + Sentry-non-fatal + disabled
+app-E2E CI design, and why macOS is currently unpublished).
