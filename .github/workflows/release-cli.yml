@@ -131,6 +131,11 @@ jobs:
           fi
 
       - name: Upload debug symbols to Sentry
+        # torico fork has no SENTRY_AUTH_TOKEN (upstream/mediar org). Without it
+        # sentry-cli returns 401 and exits 1 — debug-symbol upload is optional
+        # telemetry and must not fail the release build (same spirit as the
+        # SSL.com signing step that no-ops without ESIGNER_* secrets).
+        continue-on-error: true
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: mediar
@@ -370,6 +375,11 @@ jobs:
           cargo build --release -p screenpipe-engine --bin screenpipe --features directml,redact-onnx-directml --target x86_64-pc-windows-msvc
 
       - name: Upload debug symbols to Sentry
+        # torico fork has no SENTRY_AUTH_TOKEN (upstream/mediar org). Without it
+        # sentry-cli returns 401 and exits 1 — debug-symbol upload is optional
+        # telemetry and must not fail the release build (same spirit as the
+        # SSL.com signing step that no-ops without ESIGNER_* secrets).
+        continue-on-error: true
         shell: powershell
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -569,6 +579,11 @@ jobs:
           cargo build --release -p screenpipe-engine --bin screenpipe --features redact-onnx-cpu --target ${{ matrix.target }}
 
       - name: Upload debug symbols to Sentry
+        # torico fork has no SENTRY_AUTH_TOKEN (upstream/mediar org). Without it
+        # sentry-cli returns 401 and exits 1 — debug-symbol upload is optional
+        # telemetry and must not fail the release build (same spirit as the
+        # SSL.com signing step that no-ops without ESIGNER_* secrets).
+        continue-on-error: true
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: mediar
