@@ -1,5 +1,5 @@
 {
-  "name": "@screenpipe/cli-linux-x64",
+  "name": "@torico-tokyo/cli-linux-x64",
   "version": "0.1.0",
   "description": "screenpipe CLI binary for Linux x64",
   "os": ["linux"],

@@ -7,10 +7,10 @@ const { join, dirname } = require("path");
 const { existsSync, chmodSync } = require("fs");
 
 const PLATFORMS = {
-  "darwin-arm64": "@screenpipe/cli-darwin-arm64",
-  "darwin-x64": "@screenpipe/cli-darwin-x64",
-  "linux-x64": "@screenpipe/cli-linux-x64",
-  "win32-x64": "@screenpipe/cli-win32-x64",
+  "darwin-arm64": "@torico-tokyo/cli-darwin-arm64",
+  "darwin-x64": "@torico-tokyo/cli-darwin-x64",
+  "linux-x64": "@torico-tokyo/cli-linux-x64",
+  "win32-x64": "@torico-tokyo/cli-win32-x64",
 };
 
 /**

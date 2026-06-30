@@ -1,5 +1,5 @@
 {
-  "name": "@screenpipe/cli-darwin-arm64",
+  "name": "@torico-tokyo/cli-darwin-arm64",
   "version": "0.1.0",
   "description": "screenpipe CLI binary for macOS ARM64",
   "os": ["darwin"],
