@@ -953,7 +953,8 @@ fn capture_and_send(
     }
 
     // Capture the tree
-    let root = match uia.capture_window_tree(hwnd, config.tree_max_elements, config.tree_max_depth) {
+    let root = match uia.capture_window_tree(hwnd, config.tree_max_elements, config.tree_max_depth)
+    {
         Some(root) => root,
         None => {
             trace!("Failed to capture tree for hwnd {:?}", hwnd.0);

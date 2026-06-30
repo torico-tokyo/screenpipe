@@ -445,9 +445,7 @@ impl RecordingConfig {
             // unchanged. Forwarded to `UiCaptureConfig::tree_max_elements` in
             // `UiRecorderConfig::to_ui_config`. Only effective while the tree
             // walk runs (i.e. not when `disable_a11y_tree`).
-            tree_max_elements: self
-                .tree_max_elements
-                .unwrap_or(defaults.tree_max_elements),
+            tree_max_elements: self.tree_max_elements.unwrap_or(defaults.tree_max_elements),
             // `--tree-max-depth` / `treeMaxDepth`: cap the walk depth. `None`
             // keeps the built-in 0 (unlimited) so existing behavior is
             // unchanged. Forwarded to `UiCaptureConfig::tree_max_depth`.
