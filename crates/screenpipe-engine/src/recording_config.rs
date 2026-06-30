@@ -91,6 +91,10 @@ pub struct RecordingConfig {
     // Filters
     pub ignored_windows: Vec<String>,
     pub included_windows: Vec<String>,
+    /// Apps/windows whose a11y tree walk is skipped while focus records are kept
+    /// (per-app `--no-a11y-tree-windows`). Maps to
+    /// `UiRecorderConfig::no_a11y_tree_windows` → `UiCaptureConfig::no_tree_walk_windows`.
+    pub no_a11y_tree_windows: Vec<String>,
     pub ignored_urls: Vec<String>,
     /// Automatically detect and skip incognito / private browsing windows.
     pub ignore_incognito_windows: bool,
@@ -329,6 +333,7 @@ impl RecordingConfig {
             use_all_monitors: settings.use_all_monitors,
             ignored_windows: settings.ignored_windows.clone(),
             included_windows: settings.included_windows.clone(),
+            no_a11y_tree_windows: settings.no_a11y_tree_windows.clone(),
             ignored_urls: settings.ignored_urls.clone(),
             ignore_incognito_windows: settings.ignore_incognito_windows,
             pause_on_drm_content: settings.pause_on_drm_content,
@@ -454,6 +459,7 @@ impl RecordingConfig {
             excluded_windows: self.ignored_windows.clone(),
             ignored_windows: self.ignored_windows.clone(),
             included_windows: self.included_windows.clone(),
+            no_a11y_tree_windows: self.no_a11y_tree_windows.clone(),
             capture_clipboard: !self.disable_clipboard_capture || capture_on_clipboard,
             capture_clipboard_content: !self.disable_clipboard_capture,
             // Keyboard events always reach the recorder so they can wake
@@ -777,6 +783,33 @@ mod tests {
             ui.to_ui_config().tree_max_depth,
             12,
             "tree_max_depth must reach UiCaptureConfig so the UIA walk is depth-bounded"
+        );
+    }
+
+    #[test]
+    fn no_a11y_tree_windows_flows_to_ui_capture_config() {
+        // Default: empty list, every app's tree walk runs (no regression).
+        let ui = build(&screenpipe_config::RecordingSettings::default()).to_ui_recorder_config();
+        assert!(ui.no_a11y_tree_windows.is_empty());
+        assert!(ui
+            .to_ui_config()
+            .should_walk_tree("waterfox.exe", Some("Bank")));
+
+        // `--no-a11y-tree-windows Waterfox`: reaches UiCaptureConfig and skips
+        // the tree walk for Waterfox only, while other apps keep walking.
+        let settings = screenpipe_config::RecordingSettings {
+            no_a11y_tree_windows: vec!["Waterfox".to_string()],
+            ..Default::default()
+        };
+        let cap = build(&settings).to_ui_recorder_config().to_ui_config();
+        assert_eq!(cap.no_tree_walk_windows, vec!["Waterfox".to_string()]);
+        assert!(
+            !cap.should_walk_tree("waterfox.exe", Some("anything")),
+            "no_a11y_tree_windows must reach UiCaptureConfig so the UIA walk is skipped per-app"
+        );
+        assert!(
+            cap.should_walk_tree("Code", Some("main.rs")),
+            "non-matching apps must still walk the tree"
         );
     }
 

@@ -107,6 +107,10 @@ pub struct UiRecorderConfig {
     pub ignored_windows: Vec<String>,
     /// User-configured included windows (whitelist for tree walker)
     pub included_windows: Vec<String>,
+    /// Apps/windows whose a11y tree walk is skipped while focus records are kept
+    /// (record `--no-a11y-tree-windows`). Forwarded to
+    /// `UiCaptureConfig::no_tree_walk_windows`. Supports `App::Title` scoping.
+    pub no_a11y_tree_windows: Vec<String>,
     /// Batch size for database inserts
     pub batch_size: usize,
     /// Batch timeout in milliseconds
@@ -165,6 +169,7 @@ impl Default for UiRecorderConfig {
             excluded_windows: Vec::new(),
             ignored_windows: Vec::new(),
             included_windows: Vec::new(),
+            no_a11y_tree_windows: Vec::new(),
             batch_size: 100,
             batch_timeout_ms: 1000,
             enable_tree_walker: true,
@@ -226,6 +231,7 @@ impl UiRecorderConfig {
         config.excluded_window_pattern_strings = self.excluded_windows.clone();
         config.ignored_windows = self.ignored_windows.clone();
         config.included_windows = self.included_windows.clone();
+        config.no_tree_walk_windows = self.no_a11y_tree_windows.clone();
         config.compile_patterns();
 
         config
