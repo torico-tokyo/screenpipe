@@ -1,5 +1,5 @@
 {
-  "name": "@torico-tokyo/screenpipe",
+  "name": "@torico/screenpipe",
   "version": "0.1.0",
   "description": "screenpipe CLI — AI that knows everything you've seen, said, or heard",
   "main": "lib/index.js",
@@ -13,10 +13,10 @@
     "postinstall": "node scripts/postinstall.js"
   },
   "optionalDependencies": {
-    "@torico-tokyo/cli-darwin-arm64": "0.1.0",
-    "@torico-tokyo/cli-darwin-x64": "0.1.0",
-    "@torico-tokyo/cli-linux-x64": "0.1.0",
-    "@torico-tokyo/cli-win32-x64": "0.1.0"
+    "@torico/cli-darwin-arm64": "0.1.0",
+    "@torico/cli-darwin-x64": "0.1.0",
+    "@torico/cli-linux-x64": "0.1.0",
+    "@torico/cli-win32-x64": "0.1.0"
   },
   "repository": {
     "type": "git",
