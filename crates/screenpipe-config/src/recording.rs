@@ -404,6 +404,16 @@ pub struct RecordingSettings {
     #[serde(rename = "treeMaxElements", default)]
     pub tree_max_elements: Option<usize>,
 
+    /// Cap the depth of the accessibility (UIA/AX) tree walk (root = depth 1).
+    /// `None` (default) = unlimited, preserving existing behavior. Setting e.g.
+    /// 12 stops the walk from descending past depth 12, bounding the cost of
+    /// deep-but-narrow trees (huge DOMs) in a way `treeMaxElements` cannot.
+    /// Ignored when `disableA11yTree` is `true` (the walk does not run).
+    /// Maps to `UiRecorderConfig::tree_max_depth` →
+    /// `UiCaptureConfig::tree_max_depth`.
+    #[serde(rename = "treeMaxDepth", default)]
+    pub tree_max_depth: Option<usize>,
+
     /// Continue recording audio when the screen is locked.
     /// Default: false (audio pauses when screen is locked to save resources).
     #[serde(rename = "recordWhileLocked", default)]
@@ -692,6 +702,7 @@ impl Default for RecordingSettings {
             disable_click_capture: false,
             disable_a11y_tree: false,
             tree_max_elements: None,
+            tree_max_depth: None,
             record_while_locked: false,
             languages: vec![],
             use_pii_removal: false,

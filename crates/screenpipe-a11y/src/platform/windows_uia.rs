@@ -7,7 +7,7 @@
 //! of the focused window with minimal CPU via CacheRequest batching and
 //! event-driven capture.
 
-use crate::config::UiCaptureConfig;
+use crate::config::{tree_walk_descends, UiCaptureConfig};
 use crate::events::{AccessibilityNode, ElementBounds, ElementContext, WindowTreeSnapshot};
 use chrono::Utc;
 use crossbeam_channel::Sender;
@@ -175,6 +175,7 @@ impl UiaContext {
         &self,
         hwnd: HWND,
         max_elements: usize,
+        max_depth: usize,
     ) -> Option<AccessibilityNode> {
         unsafe {
             let element = self
@@ -183,14 +184,17 @@ impl UiaContext {
                 .ok()?;
 
             let mut count = 0;
-            let root = self.build_node(&element, max_elements, &mut count);
+            // Root is depth 1; build_node descends while depth < max_depth.
+            let root = self.build_node(&element, max_elements, max_depth, 1, &mut count);
 
             // Some UIA providers (notably Chromium/Electron) don't populate the
             // cached subtree via ElementFromHandleBuildCache, returning only a
             // handful of titlebar nodes. When this happens, fall back to
             // TreeWalker which makes individual COM calls per element.
             if count <= 10 {
-                if let Some(walker_root) = self.capture_window_tree_walker(hwnd, max_elements) {
+                if let Some(walker_root) =
+                    self.capture_window_tree_walker(hwnd, max_elements, max_depth)
+                {
                     let walker_count = walker_root.node_count();
                     if walker_count > count {
                         debug!(
@@ -213,6 +217,7 @@ impl UiaContext {
         &self,
         hwnd: HWND,
         max_elements: usize,
+        max_depth: usize,
     ) -> Option<AccessibilityNode> {
         unsafe {
             // Get a live element (required for TreeWalker navigation)
@@ -223,7 +228,8 @@ impl UiaContext {
                 .ok()?;
 
             let mut count = 0;
-            Some(self.build_node_walker(&cached_root, max_elements, &mut count))
+            // Root is depth 1; build_node_walker descends while depth < max_depth.
+            Some(self.build_node_walker(&cached_root, max_elements, max_depth, 1, &mut count))
         }
     }
 
@@ -234,6 +240,8 @@ impl UiaContext {
         &self,
         element: &IUIAutomationElement,
         max_elements: usize,
+        max_depth: usize,
+        depth: usize,
         count: &mut usize,
     ) -> AccessibilityNode {
         *count += 1;
@@ -256,14 +264,20 @@ impl UiaContext {
             self.get_cached_string(element, UIA_LocalizedControlTypePropertyId);
 
         let mut children = Vec::new();
-        if *count < max_elements {
+        if *count < max_elements && tree_walk_descends(depth, max_depth) {
             unsafe {
                 // Navigate to first child via TreeWalker
                 if let Ok(child) = self
                     .tree_walker
                     .GetFirstChildElementBuildCache(element, &self.walker_cache_request)
                 {
-                    children.push(self.build_node_walker(&child, max_elements, count));
+                    children.push(self.build_node_walker(
+                        &child,
+                        max_elements,
+                        max_depth,
+                        depth + 1,
+                        count,
+                    ));
                     // Iterate siblings
                     let mut current = child;
                     while *count < max_elements {
@@ -272,7 +286,13 @@ impl UiaContext {
                             .GetNextSiblingElementBuildCache(&current, &self.walker_cache_request)
                         {
                             Ok(next) => {
-                                children.push(self.build_node_walker(&next, max_elements, count));
+                                children.push(self.build_node_walker(
+                                    &next,
+                                    max_elements,
+                                    max_depth,
+                                    depth + 1,
+                                    count,
+                                ));
                                 current = next;
                             }
                             Err(_) => break,
@@ -308,6 +328,8 @@ impl UiaContext {
         &self,
         element: &IUIAutomationElement,
         max_elements: usize,
+        max_depth: usize,
+        depth: usize,
         count: &mut usize,
     ) -> AccessibilityNode {
         *count += 1;
@@ -330,7 +352,7 @@ impl UiaContext {
             self.get_cached_string(element, UIA_LocalizedControlTypePropertyId);
 
         let mut children = Vec::new();
-        if *count < max_elements {
+        if *count < max_elements && tree_walk_descends(depth, max_depth) {
             unsafe {
                 // Walk cached children (already fetched via TreeScope_Subtree)
                 if let Ok(child_array) = element.GetCachedChildren() {
@@ -340,7 +362,13 @@ impl UiaContext {
                                 break;
                             }
                             if let Ok(child) = child_array.GetElement(i) {
-                                children.push(self.build_node(&child, max_elements, count));
+                                children.push(self.build_node(
+                                    &child,
+                                    max_elements,
+                                    max_depth,
+                                    depth + 1,
+                                    count,
+                                ));
                             }
                         }
                     }
@@ -925,7 +953,7 @@ fn capture_and_send(
     }
 
     // Capture the tree
-    let root = match uia.capture_window_tree(hwnd, config.tree_max_elements) {
+    let root = match uia.capture_window_tree(hwnd, config.tree_max_elements, config.tree_max_depth) {
         Some(root) => root,
         None => {
             trace!("Failed to capture tree for hwnd {:?}", hwnd.0);
@@ -1388,7 +1416,7 @@ mod tests {
                 .unwrap_or_else(|| "Unknown".to_string());
 
             let start = std::time::Instant::now();
-            let root = uia.capture_window_tree(*hwnd, 10000);
+            let root = uia.capture_window_tree(*hwnd, 10000, 0);
             let elapsed = start.elapsed().as_millis();
 
             match root {
@@ -1397,7 +1425,7 @@ mod tests {
                     let hash = compute_tree_hash(node);
 
                     // Verify hash stability: capturing same window again should give same hash
-                    let root2 = uia.capture_window_tree(*hwnd, 10000);
+                    let root2 = uia.capture_window_tree(*hwnd, 10000, 0);
                     if let Some(ref node2) = root2 {
                         let hash2 = compute_tree_hash(node2);
                         // Hash might differ if UI changed between captures, but usually stable
@@ -1480,7 +1508,7 @@ mod tests {
         assert!(!hwnd.is_invalid(), "No foreground window");
 
         let start = std::time::Instant::now();
-        let root = uia.capture_window_tree(hwnd, 10000);
+        let root = uia.capture_window_tree(hwnd, 10000, 0);
         let elapsed = start.elapsed().as_millis();
 
         assert!(root.is_some(), "Failed to capture tree");
@@ -1495,7 +1523,7 @@ mod tests {
         assert!(count >= 1, "Should have at least root");
 
         // Verify hash stability
-        let root2 = uia.capture_window_tree(hwnd, 10000).unwrap();
+        let root2 = uia.capture_window_tree(hwnd, 10000, 0).unwrap();
         let hash2 = compute_tree_hash(&root2);
         println!("Hash2: {} (stable: {})", hash2, hash == hash2);
 
@@ -1609,7 +1637,7 @@ mod tests {
 
         for i in 0..iterations {
             let start = std::time::Instant::now();
-            let root = uia.capture_window_tree(hwnd, 10000);
+            let root = uia.capture_window_tree(hwnd, 10000, 0);
             let elapsed = start.elapsed();
             times.push(elapsed);
 
@@ -1984,7 +2012,7 @@ mod tests {
             let app = crate::platform::windows::get_process_name(*pid)
                 .unwrap_or_else(|| "Unknown".to_string());
 
-            let root = match uia.capture_window_tree(*hwnd, 10000) {
+            let root = match uia.capture_window_tree(*hwnd, 10000, 0) {
                 Some(r) => r,
                 None => continue,
             };

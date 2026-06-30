@@ -116,6 +116,9 @@ pub struct UiRecorderConfig {
     /// Maximum a11y elements walked per window tree. Forwarded to
     /// `UiCaptureConfig::tree_max_elements`. Lower = cheaper walk.
     pub tree_max_elements: usize,
+    /// Maximum depth of the a11y tree walk (0 = unlimited, root = depth 1).
+    /// Forwarded to `UiCaptureConfig::tree_max_depth`.
+    pub tree_max_depth: usize,
     /// Tree walk interval in milliseconds
     pub tree_walk_interval_ms: u64,
     /// Record input events to DB (false = still capture for wake signal but don't write)
@@ -166,6 +169,7 @@ impl Default for UiRecorderConfig {
             batch_timeout_ms: 1000,
             enable_tree_walker: true,
             tree_max_elements: 10000,
+            tree_max_depth: 0, // unlimited
             tree_walk_interval_ms: 3000,
             record_input_events: true,
             record_keyboard_events: true,
@@ -209,6 +213,7 @@ impl UiRecorderConfig {
         // this to 10000, but it is otherwise never wired from the recorder, so
         // `--tree-max-elements` could not reach the UIA worker without this.
         config.tree_max_elements = self.tree_max_elements;
+        config.tree_max_depth = self.tree_max_depth;
         config.prioritize_input_latency = self.prioritize_input_latency;
         config.extraction_thread_priority = self.extraction_thread_priority;
         config.pause_extraction_on_input_ms = self.pause_extraction_on_input_ms;

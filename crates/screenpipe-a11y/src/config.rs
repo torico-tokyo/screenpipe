@@ -58,6 +58,13 @@ pub struct UiCaptureConfig {
     /// Maximum elements to capture per window tree
     pub tree_max_elements: usize,
 
+    /// Maximum depth to descend when walking a window tree (root = depth 1).
+    /// `0` = unlimited (default — preserves the historical behavior). A walk at
+    /// depth `d` only descends into its children while `d < tree_max_depth`, so
+    /// `tree_max_depth = 12` visits nodes down to depth 12 and skips anything
+    /// deeper. Orthogonal to `tree_max_elements` (both caps apply).
+    pub tree_max_depth: usize,
+
     /// Safety-net interval for periodic tree re-capture (ms, 0 = disabled)
     pub tree_capture_interval_ms: u64,
 
@@ -201,6 +208,7 @@ impl Default for UiCaptureConfig {
             capture_tree: true,
             tree_debounce_ms: 300,
             tree_max_elements: 10000,
+            tree_max_depth: 0, // unlimited — preserves historical behavior
             tree_capture_interval_ms: 2000,
             mouse_move_threshold: 5.0,
             text_timeout_ms: 300,
@@ -446,6 +454,18 @@ impl UiCaptureConfig {
     }
 }
 
+/// Whether a tree walk currently at `depth` (root = depth 1) may descend into
+/// its children, given a `max_depth` cap. `max_depth == 0` means unlimited.
+/// Shared by the cached and TreeWalker recursions so the depth-guard semantics
+/// stay identical, and unit-testable on every platform (the Windows UIA worker
+/// that uses it does not compile elsewhere — hence the non-Windows allow, since
+/// only the tests reference it there).
+#[inline]
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+pub(crate) fn tree_walk_descends(depth: usize, max_depth: usize) -> bool {
+    max_depth == 0 || depth < max_depth
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -458,6 +478,23 @@ mod tests {
         assert!(config.capture_window_focus);
         assert!(!config.capture_keystrokes); // Should be off by default
         assert!(config.capture_clipboard_content); // On by default
+        assert_eq!(config.tree_max_depth, 0); // unlimited by default
+    }
+
+    #[test]
+    fn test_tree_walk_descends_depth_guard() {
+        // max_depth == 0 -> unlimited: always descends, at any depth.
+        assert!(tree_walk_descends(1, 0));
+        assert!(tree_walk_descends(10_000, 0));
+
+        // max_depth == 1 -> root only (root is depth 1, 1 < 1 is false).
+        assert!(!tree_walk_descends(1, 1));
+
+        // max_depth == 12 -> descends through depth 11, stops at depth 12 so
+        // nodes deeper than 12 are never walked.
+        assert!(tree_walk_descends(11, 12));
+        assert!(!tree_walk_descends(12, 12));
+        assert!(!tree_walk_descends(13, 12));
     }
 
     #[test]
