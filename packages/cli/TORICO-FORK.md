@@ -14,7 +14,15 @@ tracker) launches screenpipe for recording. Windows UIA / accessibility-tree
 walking is expensive (upstream issue #4350, no off switch upstream). This fork
 adds record flags to bound or disable that walk:
 
-- `--disable-a11y-tree` — stop the UIA/a11y tree walk entirely (focus logging kept)
+- `--disable-a11y-tree` — stop the UIA/a11y tree walk entirely. **Global: this
+  disables the walk for every app/window** (focus / app-switch logging kept).
+- `--no-a11y-tree-windows <pattern>` — **per-app** form (since `v0.4.25-torico.3`):
+  skip the tree walk only for matching apps/windows (e.g. heavy browsers), while
+  keeping their focus records *and* the tree walk for every other app. Repeatable
+  (`--no-a11y-tree-windows Waterfox --no-a11y-tree-windows Firefox`). Matching
+  mirrors `--ignored-windows`: case-insensitive contains + `App::Title` scoping.
+  Windows UIA only. Use this, not `--disable-a11y-tree`, when only some apps are
+  the problem.
 - `--tree-max-elements <N>` — cap the number of elements walked (default 10000)
 - `--tree-max-depth <N>` — cap walk depth (default 0 = unlimited)
 
@@ -37,7 +45,9 @@ must not be used for this.
   though only some are published. Unpublished ones 404 on install but are
   `optional`, so they are skipped (install succeeds). Keeping all four means a
   later macOS publish needs no wrapper edit.
-- First release: **`v0.4.25-torico.2`** (tracks upstream CLI `0.4.25`).
+- Latest release: **`v0.4.25-torico.3`** (tracks upstream CLI `0.4.25`; adds the
+  per-app `--no-a11y-tree-windows` flag). `.2` had only the global flags; `.1`
+  never published (CI Sentry failure).
 
 ## How to cut a release
 
