@@ -109,6 +109,11 @@ pub struct RecordingConfig {
     /// (`UiRecorderConfig::record_click_events`). Clicks still wake
     /// event-driven capture. See `RecordingSettings.disable_click_capture`.
     pub disable_click_capture: bool,
+    /// Disable the heavy a11y (UIA/AX) tree walk while keeping app-switch /
+    /// window-focus records. Maps to `UiRecorderConfig::enable_tree_walker`
+    /// (→ `UiCaptureConfig::capture_tree`). See
+    /// `RecordingSettings.disable_a11y_tree`.
+    pub disable_a11y_tree: bool,
     pub languages: Vec<Language>,
 
     // Cloud/auth
@@ -320,6 +325,7 @@ impl RecordingConfig {
             disable_clipboard_capture: settings.disable_clipboard_capture,
             disable_keyboard_capture: settings.disable_keyboard_capture,
             disable_click_capture: settings.disable_click_capture,
+            disable_a11y_tree: settings.disable_a11y_tree,
             languages: settings
                 .languages
                 .iter()
@@ -417,7 +423,11 @@ impl RecordingConfig {
             .unwrap_or(defaults.capture_on_clipboard);
         crate::ui_recorder::UiRecorderConfig {
             enabled: true,
-            enable_tree_walker: true,
+            // `--disable-a11y-tree` / `disableA11yTree`: gate the heavy UIA/AX
+            // tree walk. Maps through to `UiCaptureConfig::capture_tree` in
+            // `UiRecorderConfig::to_ui_config`. app_switch / window_focus are
+            // emitted independently (see platform/windows.rs) and are unaffected.
+            enable_tree_walker: !self.disable_a11y_tree,
             record_input_events: true,
             excluded_windows: self.ignored_windows.clone(),
             ignored_windows: self.ignored_windows.clone(),
@@ -671,6 +681,39 @@ mod tests {
         let ui = build(&settings).to_ui_recorder_config();
         assert!(ui.capture_clicks);
         assert!(!ui.record_click_events);
+    }
+
+    #[test]
+    fn disable_a11y_tree_gates_tree_walk_but_keeps_focus_records() {
+        // Default: tree walk ON (no regression for existing users).
+        let ui = build(&screenpipe_config::RecordingSettings::default()).to_ui_recorder_config();
+        assert!(ui.enable_tree_walker);
+        let cap = ui.to_ui_config();
+        assert!(cap.capture_tree, "tree walk must stay on by default");
+        assert!(cap.capture_app_switch);
+        assert!(cap.capture_window_focus);
+
+        // Opt-out: tree walk OFF, but app_switch / window_focus stay ON so
+        // per-app dwell time is still recorded into ui_events.
+        let settings = screenpipe_config::RecordingSettings {
+            disable_a11y_tree: true,
+            ..Default::default()
+        };
+        let ui = build(&settings).to_ui_recorder_config();
+        assert!(!ui.enable_tree_walker);
+        let cap = ui.to_ui_config();
+        assert!(
+            !cap.capture_tree,
+            "disable_a11y_tree must stop the UIA/AX tree walk (capture_tree)"
+        );
+        assert!(
+            cap.capture_app_switch,
+            "app_switch must keep flowing when the tree walk is disabled"
+        );
+        assert!(
+            cap.capture_window_focus,
+            "window_focus must keep flowing when the tree walk is disabled"
+        );
     }
 
     #[test]
