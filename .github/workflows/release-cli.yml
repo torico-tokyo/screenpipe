@@ -733,10 +733,10 @@ jobs:
       - name: Verify platform package tarballs
         run: |
           for pkg in \
-            @screenpipe/cli-darwin-arm64 \
-            @screenpipe/cli-darwin-x64 \
-            @screenpipe/cli-linux-x64 \
-            @screenpipe/cli-win32-x64; do
+            @torico-tokyo/cli-darwin-arm64 \
+            @torico-tokyo/cli-darwin-x64 \
+            @torico-tokyo/cli-linux-x64 \
+            @torico-tokyo/cli-win32-x64; do
             ok=false
             for attempt in $(seq 1 30); do
               url=$(npm view "$pkg@${{ env.VERSION }}" dist.tarball 2>/dev/null || true)

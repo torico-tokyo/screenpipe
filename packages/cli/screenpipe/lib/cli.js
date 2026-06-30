@@ -16,7 +16,7 @@ if (!bin) {
   const key = `${process.platform}-${process.arch}`;
   console.error(
     `screenpipe: no prebuilt binary for ${key}. ` +
-      `reinstall with: npm i -g screenpipe`,
+      `reinstall with: npm i -g @torico-tokyo/screenpipe`,
   );
   process.exit(1);
 }
