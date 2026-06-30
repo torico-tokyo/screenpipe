@@ -627,7 +627,13 @@ jobs:
 
   publish-npm:
     runs-on: ubuntu-latest
-    needs: [build-macos, build-windows, build-linux]
+    # torico fork: only build-windows is a hard dependency. macOS is currently
+    # broken by the macos-latest (macOS 26 / Xcode 26.5) runner regression
+    # (clang_rt.osx link failure). build-macos / build-linux still run in
+    # parallel and, when they succeed, their artifacts are picked up and
+    # published too — a missing/failed platform no longer blocks publishing the
+    # platforms that did build (the consuming app is Windows-only).
+    needs: [build-windows]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -657,33 +663,51 @@ jobs:
 
       - name: Prepare platform packages
         run: |
+          # Each platform block is guarded by the presence of its build
+          # artifact, so a platform whose build failed/was skipped (e.g. macOS
+          # on the broken macos-latest runner) is simply absent here instead of
+          # failing the step. Windows is the only platform the fork must ship.
+
           # macOS ARM64
-          mkdir -p /tmp/darwin-arm64
-          mkdir -p packages/cli/screenpipe-darwin-arm64/bin
-          tar -xzf artifacts/screenpipe-macos-aarch64-apple-darwin/screenpipe-*.tar.gz -C /tmp/darwin-arm64
-          cp /tmp/darwin-arm64/bin/screenpipe packages/cli/screenpipe-darwin-arm64/bin/ 2>/dev/null || \
-            (cd artifacts/screenpipe-macos-aarch64-apple-darwin && tar -xzf screenpipe-*.tar.gz && cp bin/screenpipe ../../packages/cli/screenpipe-darwin-arm64/bin/)
-          # Bundle mlx.metallib for Parakeet MLX GPU support
-          cp /tmp/darwin-arm64/bin/mlx.metallib packages/cli/screenpipe-darwin-arm64/bin/ 2>/dev/null || \
-            (cd artifacts/screenpipe-macos-aarch64-apple-darwin && cp bin/mlx.metallib ../../packages/cli/screenpipe-darwin-arm64/bin/ 2>/dev/null) || \
-            echo "⚠️ mlx.metallib not found in artifact"
-          chmod +x packages/cli/screenpipe-darwin-arm64/bin/screenpipe
-          test -f packages/cli/screenpipe-darwin-arm64/bin/screenpipe
+          if [ -d artifacts/screenpipe-macos-aarch64-apple-darwin ]; then
+            mkdir -p /tmp/darwin-arm64
+            mkdir -p packages/cli/screenpipe-darwin-arm64/bin
+            tar -xzf artifacts/screenpipe-macos-aarch64-apple-darwin/screenpipe-*.tar.gz -C /tmp/darwin-arm64
+            cp /tmp/darwin-arm64/bin/screenpipe packages/cli/screenpipe-darwin-arm64/bin/ 2>/dev/null || \
+              (cd artifacts/screenpipe-macos-aarch64-apple-darwin && tar -xzf screenpipe-*.tar.gz && cp bin/screenpipe ../../packages/cli/screenpipe-darwin-arm64/bin/)
+            # Bundle mlx.metallib for Parakeet MLX GPU support
+            cp /tmp/darwin-arm64/bin/mlx.metallib packages/cli/screenpipe-darwin-arm64/bin/ 2>/dev/null || \
+              (cd artifacts/screenpipe-macos-aarch64-apple-darwin && cp bin/mlx.metallib ../../packages/cli/screenpipe-darwin-arm64/bin/ 2>/dev/null) || \
+              echo "⚠️ mlx.metallib not found in artifact"
+            chmod +x packages/cli/screenpipe-darwin-arm64/bin/screenpipe
+            test -f packages/cli/screenpipe-darwin-arm64/bin/screenpipe
+          else
+            echo "::warning::macOS arm64 artifact missing — skipping @torico/cli-darwin-arm64"
+          fi
 
           # macOS x64
-          mkdir -p packages/cli/screenpipe-darwin-x64/bin
-          cd artifacts/screenpipe-macos-x86_64-apple-darwin && tar -xzf screenpipe-*.tar.gz && cp bin/screenpipe ../../packages/cli/screenpipe-darwin-x64/bin/ && (cp bin/libonnxruntime.dylib ../../packages/cli/screenpipe-darwin-x64/bin/ 2>/dev/null || true) && cd ../..
-          chmod +x packages/cli/screenpipe-darwin-x64/bin/screenpipe
+          if [ -d artifacts/screenpipe-macos-x86_64-apple-darwin ]; then
+            mkdir -p packages/cli/screenpipe-darwin-x64/bin
+            cd artifacts/screenpipe-macos-x86_64-apple-darwin && tar -xzf screenpipe-*.tar.gz && cp bin/screenpipe ../../packages/cli/screenpipe-darwin-x64/bin/ && (cp bin/libonnxruntime.dylib ../../packages/cli/screenpipe-darwin-x64/bin/ 2>/dev/null || true) && cd ../..
+            chmod +x packages/cli/screenpipe-darwin-x64/bin/screenpipe
+          else
+            echo "::warning::macOS x64 artifact missing — skipping @torico/cli-darwin-x64"
+          fi
 
           # Linux x64
-          mkdir -p packages/cli/screenpipe-linux-x64/bin
-          cd artifacts/screenpipe-linux-x86_64-unknown-linux-gnu && tar -xzf screenpipe-*.tar.gz && cp bin/screenpipe ../../packages/cli/screenpipe-linux-x64/bin/ && cd ../..
-          chmod +x packages/cli/screenpipe-linux-x64/bin/screenpipe
-          test -f packages/cli/screenpipe-linux-x64/bin/screenpipe
+          if [ -d artifacts/screenpipe-linux-x86_64-unknown-linux-gnu ]; then
+            mkdir -p packages/cli/screenpipe-linux-x64/bin
+            cd artifacts/screenpipe-linux-x86_64-unknown-linux-gnu && tar -xzf screenpipe-*.tar.gz && cp bin/screenpipe ../../packages/cli/screenpipe-linux-x64/bin/ && cd ../..
+            chmod +x packages/cli/screenpipe-linux-x64/bin/screenpipe
+            test -f packages/cli/screenpipe-linux-x64/bin/screenpipe
+          else
+            echo "::warning::Linux x64 artifact missing — skipping @torico/cli-linux-x64"
+          fi
 
-          # Windows x64
+          # Windows x64 (required)
           mkdir -p packages/cli/screenpipe-win32-x64/bin
           cd artifacts/screenpipe-windows && unzip -o screenpipe-*.zip -d extracted && cp extracted/bin/screenpipe.exe ../../packages/cli/screenpipe-win32-x64/bin/ && cp extracted/bin/*.dll ../../packages/cli/screenpipe-win32-x64/bin/ 2>/dev/null || true && cd ../..
+          test -f packages/cli/screenpipe-win32-x64/bin/screenpipe.exe
 
       - name: Update package versions
         run: |
@@ -715,6 +739,12 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           for pkg in screenpipe-darwin-arm64 screenpipe-darwin-x64 screenpipe-linux-x64 screenpipe-win32-x64; do
+            # Skip platforms whose binary is absent (build failed/skipped) so we
+            # never publish an empty platform package.
+            if ! ls packages/cli/$pkg/bin/screenpipe* >/dev/null 2>&1; then
+              echo "::warning::$pkg has no binary in this build, skipping publish"
+              continue
+            fi
             cd packages/cli/$pkg
             err=$(mktemp)
             if npm publish --access public 2>"$err"; then
@@ -732,11 +762,13 @@ jobs:
 
       - name: Verify platform package tarballs
         run: |
-          for pkg in \
-            @torico/cli-darwin-arm64 \
-            @torico/cli-darwin-x64 \
-            @torico/cli-linux-x64 \
-            @torico/cli-win32-x64; do
+          for dir in screenpipe-darwin-arm64 screenpipe-darwin-x64 screenpipe-linux-x64 screenpipe-win32-x64; do
+            # Only verify platforms we actually published this run.
+            if ! ls packages/cli/$dir/bin/screenpipe* >/dev/null 2>&1; then
+              echo "::notice::$dir not built in this run, skipping verify"
+              continue
+            fi
+            pkg=$(node -p "require('./packages/cli/$dir/package.json').name")
             ok=false
             for attempt in $(seq 1 30); do
               url=$(npm view "$pkg@${{ env.VERSION }}" dist.tarball 2>/dev/null || true)
