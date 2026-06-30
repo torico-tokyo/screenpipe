@@ -119,6 +119,11 @@ pub struct RecordingConfig {
     /// `UiCaptureConfig::tree_max_elements`. See
     /// `RecordingSettings.tree_max_elements`.
     pub tree_max_elements: Option<usize>,
+    /// Depth cap on the a11y tree walk (`None` = unlimited, root = depth 1).
+    /// Maps to `UiRecorderConfig::tree_max_depth` →
+    /// `UiCaptureConfig::tree_max_depth`. See
+    /// `RecordingSettings.tree_max_depth`.
+    pub tree_max_depth: Option<usize>,
     pub languages: Vec<Language>,
 
     // Cloud/auth
@@ -332,6 +337,7 @@ impl RecordingConfig {
             disable_click_capture: settings.disable_click_capture,
             disable_a11y_tree: settings.disable_a11y_tree,
             tree_max_elements: settings.tree_max_elements,
+            tree_max_depth: settings.tree_max_depth,
             languages: settings
                 .languages
                 .iter()
@@ -442,6 +448,10 @@ impl RecordingConfig {
             tree_max_elements: self
                 .tree_max_elements
                 .unwrap_or(defaults.tree_max_elements),
+            // `--tree-max-depth` / `treeMaxDepth`: cap the walk depth. `None`
+            // keeps the built-in 0 (unlimited) so existing behavior is
+            // unchanged. Forwarded to `UiCaptureConfig::tree_max_depth`.
+            tree_max_depth: self.tree_max_depth.unwrap_or(defaults.tree_max_depth),
             record_input_events: true,
             excluded_windows: self.ignored_windows.clone(),
             ignored_windows: self.ignored_windows.clone(),
@@ -748,6 +758,27 @@ mod tests {
             ui.to_ui_config().tree_max_elements,
             2000,
             "tree_max_elements must reach UiCaptureConfig so the UIA walk is capped"
+        );
+    }
+
+    #[test]
+    fn tree_max_depth_flows_to_ui_capture_config() {
+        // Default: None keeps the built-in 0 = unlimited (no regression).
+        let ui = build(&screenpipe_config::RecordingSettings::default()).to_ui_recorder_config();
+        assert_eq!(ui.tree_max_depth, 0);
+        assert_eq!(ui.to_ui_config().tree_max_depth, 0);
+
+        // Explicit cap reaches UiCaptureConfig (the value the UIA worker reads).
+        let settings = screenpipe_config::RecordingSettings {
+            tree_max_depth: Some(12),
+            ..Default::default()
+        };
+        let ui = build(&settings).to_ui_recorder_config();
+        assert_eq!(ui.tree_max_depth, 12);
+        assert_eq!(
+            ui.to_ui_config().tree_max_depth,
+            12,
+            "tree_max_depth must reach UiCaptureConfig so the UIA walk is depth-bounded"
         );
     }
 

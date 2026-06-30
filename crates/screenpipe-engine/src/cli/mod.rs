@@ -719,6 +719,15 @@ pub struct RecordArgs {
     #[arg(long, value_parser = parse_tree_max_elements)]
     pub tree_max_elements: Option<usize>,
 
+    /// Cap the depth of the accessibility (UIA/AX) tree walk (root = depth 1).
+    /// Omitted = unlimited (no change). Setting e.g. 12 stops the walk from
+    /// descending past depth 12, bounding the cost of deep-but-narrow trees
+    /// (huge DOMs) in a way `--tree-max-elements` cannot. Ignored when
+    /// `--disable-a11y-tree` is set (the walk does not run). Must be >= 1
+    /// (omit for unlimited). Windows UIA only.
+    #[arg(long, value_parser = parse_tree_max_depth)]
+    pub tree_max_depth: Option<usize>,
+
     /// Require authentication for remote API access. When enabled, non-localhost
     /// requests must include Authorization: Bearer <SCREENPIPE_API_KEY>.
     /// Localhost requests are always allowed.
@@ -818,6 +827,7 @@ pub struct RecordArgSources {
     pub disable_click_capture: bool,
     pub disable_a11y_tree: bool,
     pub tree_max_elements: bool,
+    pub tree_max_depth: bool,
     pub api_auth: bool,
     pub listen_on_lan: bool,
     pub encrypt_secrets: bool,
@@ -873,6 +883,7 @@ impl RecordArgSources {
             disable_click_capture: from_command_line(record, "disable_click_capture"),
             disable_a11y_tree: from_command_line(record, "disable_a11y_tree"),
             tree_max_elements: from_command_line(record, "tree_max_elements"),
+            tree_max_depth: from_command_line(record, "tree_max_depth"),
             api_auth: from_command_line(record, "api_auth"),
             listen_on_lan: from_command_line(record, "listen_on_lan"),
             encrypt_secrets: from_command_line(record, "encrypt_secrets"),
@@ -920,6 +931,7 @@ impl RecordArgSources {
             || self.disable_click_capture
             || self.disable_a11y_tree
             || self.tree_max_elements
+            || self.tree_max_depth
             || self.api_auth
             || self.listen_on_lan
             || self.encrypt_secrets
@@ -945,6 +957,19 @@ fn parse_tree_max_elements(s: &str) -> Result<usize, String> {
         return Err(
             "must be >= 1 (use --disable-a11y-tree to turn the walk off entirely)".to_string(),
         );
+    }
+    Ok(n)
+}
+
+/// Parse `--tree-max-depth`: a walk depth cap of at least 1 (root = depth 1).
+/// A depth of 0 is the unlimited sentinel internally, so reject it on the CLI
+/// and tell the user to omit the flag for unlimited.
+fn parse_tree_max_depth(s: &str) -> Result<usize, String> {
+    let n: usize = s
+        .parse()
+        .map_err(|_| format!("must be a positive integer, got '{s}'"))?;
+    if n < 1 {
+        return Err("must be >= 1 (omit --tree-max-depth for unlimited depth)".to_string());
     }
     Ok(n)
 }
@@ -1024,6 +1049,10 @@ impl RecordArgs {
             tree_max_elements: self
                 .tree_max_elements
                 .unwrap_or(defaults.tree_max_elements),
+            // `--tree-max-depth`: cap the walk depth. `None` keeps the built-in
+            // 0 (unlimited, no regression). Forwarded to
+            // `UiCaptureConfig::tree_max_depth` in `to_ui_config`.
+            tree_max_depth: self.tree_max_depth.unwrap_or(defaults.tree_max_depth),
             record_input_events: true,
             excluded_windows: self.ignored_windows.clone(),
             ignored_windows: self.ignored_windows.clone(),
@@ -1121,6 +1150,7 @@ impl RecordArgs {
             disable_click_capture: self.disable_click_capture,
             disable_a11y_tree: self.disable_a11y_tree,
             tree_max_elements: self.tree_max_elements,
+            tree_max_depth: self.tree_max_depth,
             listen_on_lan: self.listen_on_lan,
             // Passing any `--schedule-rule` implies the schedule is on.
             schedule_enabled: self.schedule_enabled || !self.schedule_rules.is_empty(),
@@ -1424,6 +1454,9 @@ impl RecordArgs {
         }
         if sources.tree_max_elements {
             settings.tree_max_elements = self.tree_max_elements;
+        }
+        if sources.tree_max_depth {
+            settings.tree_max_depth = self.tree_max_depth;
         }
         if sources.api_auth {
             settings.api_auth = self.api_auth;
@@ -2489,6 +2522,47 @@ mod tests {
         assert!(
             Cli::try_parse_from(["screenpipe", "record", "--tree-max-elements", "0"]).is_err(),
             "--tree-max-elements 0 must be rejected (use --disable-a11y-tree instead)"
+        );
+    }
+
+    #[test]
+    fn test_tree_max_depth_flows_through_cli() {
+        // Default: omitted leaves None and keeps the built-in 0 (unlimited).
+        let none = record_sources(["screenpipe", "record"]);
+        assert!(!none.tree_max_depth);
+        match Cli::try_parse_from(["screenpipe", "record"]).unwrap().command {
+            Command::Record(args) => {
+                assert_eq!(args.tree_max_depth, None);
+                assert_eq!(args.to_ui_recorder_config().tree_max_depth, 0);
+            }
+            _ => panic!("expected Record command"),
+        }
+
+        // Explicit value: marks an override (so it persists) and reaches both
+        // the recorder config and the recording settings.
+        let with_flag = record_sources(["screenpipe", "record", "--tree-max-depth", "12"]);
+        assert!(with_flag.tree_max_depth);
+        assert!(
+            with_flag.has_recording_override(),
+            "--tree-max-depth alone must mark a recording override for persistence"
+        );
+        match Cli::try_parse_from(["screenpipe", "record", "--tree-max-depth", "12"])
+            .unwrap()
+            .command
+        {
+            Command::Record(args) => {
+                assert_eq!(args.tree_max_depth, Some(12));
+                assert_eq!(args.to_ui_recorder_config().tree_max_depth, 12);
+                assert_eq!(args.to_recording_settings().tree_max_depth, Some(12));
+            }
+            _ => panic!("expected Record command"),
+        }
+
+        // 0 is rejected: 0 is the unlimited sentinel internally, so the CLI
+        // requires >= 1 and tells the user to omit the flag for unlimited.
+        assert!(
+            Cli::try_parse_from(["screenpipe", "record", "--tree-max-depth", "0"]).is_err(),
+            "--tree-max-depth 0 must be rejected (omit for unlimited)"
         );
     }
 

@@ -275,8 +275,11 @@ impl TreeWalkerPlatform for WindowsTreeWalker {
             return Ok(TreeWalkResult::NotFound);
         }
 
-        // Capture the accessibility tree
-        let root = match uia.capture_window_tree(hwnd, effective_max_nodes) {
+        // Capture the accessibility tree. This vision/OCR path builds the full
+        // tree and applies its own depth limit later in extract_text_from_tree
+        // (self.config.max_depth), so pass 0 (unlimited) here to keep its
+        // behavior unchanged — the build-time depth guard is for the UIA worker.
+        let root = match uia.capture_window_tree(hwnd, effective_max_nodes, 0) {
             Some(tree) => tree,
             None => return Ok(TreeWalkResult::NotFound),
         };

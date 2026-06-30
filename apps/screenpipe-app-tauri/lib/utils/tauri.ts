@@ -2847,6 +2847,16 @@ disableA11yTree?: boolean;
  */
 treeMaxElements?: number | null;
 /**
+ * Cap the depth of the accessibility (UIA/AX) tree walk (root = depth 1).
+ * `None` (default) = unlimited, preserving existing behavior. Setting e.g.
+ * 12 stops the walk from descending past depth 12, bounding the cost of
+ * deep-but-narrow trees (huge DOMs) in a way `treeMaxElements` cannot.
+ * Ignored when `disableA11yTree` is `true` (the walk does not run).
+ * Maps to `UiRecorderConfig::tree_max_depth` →
+ * `UiCaptureConfig::tree_max_depth`.
+ */
+treeMaxDepth?: number | null;
+/**
  * Continue recording audio when the screen is locked.
  * Default: false (audio pauses when screen is locked to save resources).
  */
