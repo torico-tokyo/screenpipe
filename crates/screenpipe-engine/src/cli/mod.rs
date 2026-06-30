@@ -1046,9 +1046,7 @@ impl RecordArgs {
             // `--tree-max-elements`: cap the per-window a11y walk. `None` keeps
             // the built-in 10000 (no regression). Forwarded to
             // `UiCaptureConfig::tree_max_elements` in `to_ui_config`.
-            tree_max_elements: self
-                .tree_max_elements
-                .unwrap_or(defaults.tree_max_elements),
+            tree_max_elements: self.tree_max_elements.unwrap_or(defaults.tree_max_elements),
             // `--tree-max-depth`: cap the walk depth. `None` keeps the built-in
             // 0 (unlimited, no regression). Forwarded to
             // `UiCaptureConfig::tree_max_depth` in `to_ui_config`.
@@ -2489,7 +2487,10 @@ mod tests {
         // Default: omitted leaves None and keeps the built-in 10000 (no change).
         let none = record_sources(["screenpipe", "record"]);
         assert!(!none.tree_max_elements);
-        match Cli::try_parse_from(["screenpipe", "record"]).unwrap().command {
+        match Cli::try_parse_from(["screenpipe", "record"])
+            .unwrap()
+            .command
+        {
             Command::Record(args) => {
                 assert_eq!(args.tree_max_elements, None);
                 assert_eq!(args.to_ui_recorder_config().tree_max_elements, 10000);
@@ -2530,7 +2531,10 @@ mod tests {
         // Default: omitted leaves None and keeps the built-in 0 (unlimited).
         let none = record_sources(["screenpipe", "record"]);
         assert!(!none.tree_max_depth);
-        match Cli::try_parse_from(["screenpipe", "record"]).unwrap().command {
+        match Cli::try_parse_from(["screenpipe", "record"])
+            .unwrap()
+            .command
+        {
             Command::Record(args) => {
                 assert_eq!(args.tree_max_depth, None);
                 assert_eq!(args.to_ui_recorder_config().tree_max_depth, 0);
