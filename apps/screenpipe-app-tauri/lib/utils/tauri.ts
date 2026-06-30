@@ -2837,6 +2837,16 @@ disableClickCapture?: boolean;
  */
 disableA11yTree?: boolean;
 /**
+ * Cap the number of accessibility (UIA/AX) elements walked per window
+ * tree. `None` (default) keeps the built-in cap of 10000. Lowering it
+ * (e.g. 2000) bounds the per-window walk cost linearly without turning the
+ * tree walk off entirely — the middle ground between full walk and
+ * `disableA11yTree`. Ignored when `disableA11yTree` is `true` (the walk
+ * does not run at all). Maps to `UiRecorderConfig::tree_max_elements` →
+ * `UiCaptureConfig::tree_max_elements`.
+ */
+treeMaxElements?: number | null;
+/**
  * Continue recording audio when the screen is locked.
  * Default: false (audio pauses when screen is locked to save resources).
  */

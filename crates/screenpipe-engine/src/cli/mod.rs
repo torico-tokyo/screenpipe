@@ -709,6 +709,16 @@ pub struct RecordArgs {
     #[arg(long, default_value_t = false)]
     pub disable_a11y_tree: bool,
 
+    /// Cap the number of accessibility (UIA/AX) elements walked per window tree.
+    /// Omitted = the built-in cap of 10000 (no change). Lowering it (e.g. 2000)
+    /// bounds the per-window walk cost without turning the tree walk off — the
+    /// middle ground between a full walk and `--disable-a11y-tree`. Ignored when
+    /// `--disable-a11y-tree` is set (the walk does not run). Windows UIA only.
+    /// Must be >= 1 (a cap of 0 would walk nothing useful — use
+    /// `--disable-a11y-tree` to turn the walk off).
+    #[arg(long, value_parser = parse_tree_max_elements)]
+    pub tree_max_elements: Option<usize>,
+
     /// Require authentication for remote API access. When enabled, non-localhost
     /// requests must include Authorization: Bearer <SCREENPIPE_API_KEY>.
     /// Localhost requests are always allowed.
@@ -807,6 +817,7 @@ pub struct RecordArgSources {
     pub disable_keyboard_capture: bool,
     pub disable_click_capture: bool,
     pub disable_a11y_tree: bool,
+    pub tree_max_elements: bool,
     pub api_auth: bool,
     pub listen_on_lan: bool,
     pub encrypt_secrets: bool,
@@ -861,6 +872,7 @@ impl RecordArgSources {
             disable_keyboard_capture: from_command_line(record, "disable_keyboard_capture"),
             disable_click_capture: from_command_line(record, "disable_click_capture"),
             disable_a11y_tree: from_command_line(record, "disable_a11y_tree"),
+            tree_max_elements: from_command_line(record, "tree_max_elements"),
             api_auth: from_command_line(record, "api_auth"),
             listen_on_lan: from_command_line(record, "listen_on_lan"),
             encrypt_secrets: from_command_line(record, "encrypt_secrets"),
@@ -907,6 +919,7 @@ impl RecordArgSources {
             || self.disable_keyboard_capture
             || self.disable_click_capture
             || self.disable_a11y_tree
+            || self.tree_max_elements
             || self.api_auth
             || self.listen_on_lan
             || self.encrypt_secrets
@@ -919,6 +932,21 @@ impl RecordArgSources {
 
 fn from_command_line(matches: &ArgMatches, id: &str) -> bool {
     matches.value_source(id) == Some(ValueSource::CommandLine)
+}
+
+/// Parse `--tree-max-elements`: a per-window a11y element cap of at least 1.
+/// A cap of 0 would walk nothing useful; the intent there is
+/// `--disable-a11y-tree`, so 0 is rejected with a pointer to that flag.
+fn parse_tree_max_elements(s: &str) -> Result<usize, String> {
+    let n: usize = s
+        .parse()
+        .map_err(|_| format!("must be a positive integer, got '{s}'"))?;
+    if n < 1 {
+        return Err(
+            "must be >= 1 (use --disable-a11y-tree to turn the walk off entirely)".to_string(),
+        );
+    }
+    Ok(n)
 }
 
 /// Parse a `--schedule-rule` value: `day,start,end,mode`.
@@ -990,6 +1018,12 @@ impl RecordArgs {
             // to `UiCaptureConfig::capture_tree` in `to_ui_config`; app_switch /
             // window_focus are emitted independently (platform/windows.rs).
             enable_tree_walker: !self.disable_a11y_tree,
+            // `--tree-max-elements`: cap the per-window a11y walk. `None` keeps
+            // the built-in 10000 (no regression). Forwarded to
+            // `UiCaptureConfig::tree_max_elements` in `to_ui_config`.
+            tree_max_elements: self
+                .tree_max_elements
+                .unwrap_or(defaults.tree_max_elements),
             record_input_events: true,
             excluded_windows: self.ignored_windows.clone(),
             ignored_windows: self.ignored_windows.clone(),
@@ -1086,6 +1120,7 @@ impl RecordArgs {
             disable_keyboard_capture: self.disable_keyboard_capture,
             disable_click_capture: self.disable_click_capture,
             disable_a11y_tree: self.disable_a11y_tree,
+            tree_max_elements: self.tree_max_elements,
             listen_on_lan: self.listen_on_lan,
             // Passing any `--schedule-rule` implies the schedule is on.
             schedule_enabled: self.schedule_enabled || !self.schedule_rules.is_empty(),
@@ -1386,6 +1421,9 @@ impl RecordArgs {
         }
         if sources.disable_a11y_tree {
             settings.disable_a11y_tree = self.disable_a11y_tree;
+        }
+        if sources.tree_max_elements {
+            settings.tree_max_elements = self.tree_max_elements;
         }
         if sources.api_auth {
             settings.api_auth = self.api_auth;
@@ -2410,6 +2448,47 @@ mod tests {
         assert!(
             with_flag.has_recording_override(),
             "--disable-a11y-tree alone must mark a recording override for persistence"
+        );
+    }
+
+    #[test]
+    fn test_tree_max_elements_flows_through_cli() {
+        // Default: omitted leaves None and keeps the built-in 10000 (no change).
+        let none = record_sources(["screenpipe", "record"]);
+        assert!(!none.tree_max_elements);
+        match Cli::try_parse_from(["screenpipe", "record"]).unwrap().command {
+            Command::Record(args) => {
+                assert_eq!(args.tree_max_elements, None);
+                assert_eq!(args.to_ui_recorder_config().tree_max_elements, 10000);
+            }
+            _ => panic!("expected Record command"),
+        }
+
+        // Explicit value: marks an override (so it persists) and reaches both
+        // the recorder config and the recording settings.
+        let with_flag = record_sources(["screenpipe", "record", "--tree-max-elements", "2000"]);
+        assert!(with_flag.tree_max_elements);
+        assert!(
+            with_flag.has_recording_override(),
+            "--tree-max-elements alone must mark a recording override for persistence"
+        );
+        match Cli::try_parse_from(["screenpipe", "record", "--tree-max-elements", "2000"])
+            .unwrap()
+            .command
+        {
+            Command::Record(args) => {
+                assert_eq!(args.tree_max_elements, Some(2000));
+                assert_eq!(args.to_ui_recorder_config().tree_max_elements, 2000);
+                assert_eq!(args.to_recording_settings().tree_max_elements, Some(2000));
+            }
+            _ => panic!("expected Record command"),
+        }
+
+        // 0 is rejected: a cap of 0 walks nothing useful — the intent there is
+        // `--disable-a11y-tree`, so clap enforces a >= 1 lower bound.
+        assert!(
+            Cli::try_parse_from(["screenpipe", "record", "--tree-max-elements", "0"]).is_err(),
+            "--tree-max-elements 0 must be rejected (use --disable-a11y-tree instead)"
         );
     }
 
