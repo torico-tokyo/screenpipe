@@ -194,6 +194,13 @@ impl UiRecorderConfig {
         config.capture_window_focus = true;
         config.capture_scroll = self.capture_scroll;
         config.capture_context = self.capture_context;
+        // The a11y/UIA tree walk is gated by `UiCaptureConfig::capture_tree`
+        // (the only field the Windows UIA worker reads). `enable_tree_walker`
+        // is the recorder-level lever (`--disable-a11y-tree` flips it); forward
+        // it to both so disabling the walker actually stops `capture_window_tree`
+        // while app_switch / window_focus keep flowing (platform/windows.rs).
+        config.capture_tree = self.enable_tree_walker;
+        config.enable_tree_walker = self.enable_tree_walker;
         config.prioritize_input_latency = self.prioritize_input_latency;
         config.extraction_thread_priority = self.extraction_thread_priority;
         config.pause_extraction_on_input_ms = self.pause_extraction_on_input_ms;

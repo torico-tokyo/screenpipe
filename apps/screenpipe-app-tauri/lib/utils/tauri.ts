@@ -2825,6 +2825,18 @@ disableKeyboardCapture?: boolean;
  */
 disableClickCapture?: boolean;
 /**
+ * Disable the heavy accessibility (UIA/AX) tree walk while keeping the
+ * lightweight app-switch / window-focus records flowing. Defaults to
+ * `false` (tree walk ON — preserves existing behavior). When `true`, the
+ * Windows UIA worker skips `capture_window_tree` (the up-to-10k-element
+ * walk that can freeze browsers / Slack / Office), but `ui_events` still
+ * receives `app_switch` / `window_focus` with app_name/window_title so
+ * per-app dwell time stays measurable. Maps to
+ * `UiRecorderConfig::enable_tree_walker` → `UiCaptureConfig::capture_tree`.
+ * Orthogonal to vision: frame/OCR capture follows `disableVision`.
+ */
+disableA11yTree?: boolean;
+/**
  * Continue recording audio when the screen is locked.
  * Default: false (audio pauses when screen is locked to save resources).
  */

@@ -699,6 +699,16 @@ pub struct RecordArgs {
     #[arg(long, default_value_t = false)]
     pub disable_click_capture: bool,
 
+    /// Disable the heavy accessibility (UIA/AX) tree walk while still recording
+    /// app switches and window focus. On Windows the UIA worker skips
+    /// `capture_window_tree` (the up-to-10k-element walk that can freeze
+    /// browsers / Slack / Office), but `ui_events` keeps receiving
+    /// `app_switch` / `window_focus` with app/window names so per-app dwell
+    /// time stays measurable. Orthogonal to vision — frame/OCR capture follows
+    /// `--disable-vision`. Off by default (tree walk ON).
+    #[arg(long, default_value_t = false)]
+    pub disable_a11y_tree: bool,
+
     /// Require authentication for remote API access. When enabled, non-localhost
     /// requests must include Authorization: Bearer <SCREENPIPE_API_KEY>.
     /// Localhost requests are always allowed.
@@ -796,6 +806,7 @@ pub struct RecordArgSources {
     pub disable_clipboard_capture: bool,
     pub disable_keyboard_capture: bool,
     pub disable_click_capture: bool,
+    pub disable_a11y_tree: bool,
     pub api_auth: bool,
     pub listen_on_lan: bool,
     pub encrypt_secrets: bool,
@@ -849,6 +860,7 @@ impl RecordArgSources {
             disable_clipboard_capture: from_command_line(record, "disable_clipboard_capture"),
             disable_keyboard_capture: from_command_line(record, "disable_keyboard_capture"),
             disable_click_capture: from_command_line(record, "disable_click_capture"),
+            disable_a11y_tree: from_command_line(record, "disable_a11y_tree"),
             api_auth: from_command_line(record, "api_auth"),
             listen_on_lan: from_command_line(record, "listen_on_lan"),
             encrypt_secrets: from_command_line(record, "encrypt_secrets"),
@@ -894,6 +906,7 @@ impl RecordArgSources {
             || self.disable_clipboard_capture
             || self.disable_keyboard_capture
             || self.disable_click_capture
+            || self.disable_a11y_tree
             || self.api_auth
             || self.listen_on_lan
             || self.encrypt_secrets
@@ -973,7 +986,10 @@ impl RecordArgs {
             .unwrap_or(defaults.capture_on_clipboard);
         crate::ui_recorder::UiRecorderConfig {
             enabled: true,
-            enable_tree_walker: true,
+            // `--disable-a11y-tree`: gate the heavy UIA/AX tree walk. Forwarded
+            // to `UiCaptureConfig::capture_tree` in `to_ui_config`; app_switch /
+            // window_focus are emitted independently (platform/windows.rs).
+            enable_tree_walker: !self.disable_a11y_tree,
             record_input_events: true,
             excluded_windows: self.ignored_windows.clone(),
             ignored_windows: self.ignored_windows.clone(),
@@ -1069,6 +1085,7 @@ impl RecordArgs {
             disable_clipboard_capture: self.disable_clipboard_capture,
             disable_keyboard_capture: self.disable_keyboard_capture,
             disable_click_capture: self.disable_click_capture,
+            disable_a11y_tree: self.disable_a11y_tree,
             listen_on_lan: self.listen_on_lan,
             // Passing any `--schedule-rule` implies the schedule is on.
             schedule_enabled: self.schedule_enabled || !self.schedule_rules.is_empty(),
@@ -1366,6 +1383,9 @@ impl RecordArgs {
         }
         if sources.disable_click_capture {
             settings.disable_click_capture = self.disable_click_capture;
+        }
+        if sources.disable_a11y_tree {
+            settings.disable_a11y_tree = self.disable_a11y_tree;
         }
         if sources.api_auth {
             settings.api_auth = self.api_auth;
@@ -2373,6 +2393,24 @@ mod tests {
         assert!(!sources.disable_audio);
         assert!(!sources.use_pii_removal);
         assert!(!sources.audio_transcription_engine);
+    }
+
+    #[test]
+    fn test_disable_a11y_tree_alone_triggers_persistence() {
+        // Regression: `--disable-a11y-tree` as the only explicit flag must make
+        // `has_recording_override()` true so the override is persisted to the
+        // store. Otherwise a user with an existing store loses the setting on
+        // the next flag-less launch (tree walk silently re-enables).
+        let none = record_sources(["screenpipe", "record"]);
+        assert!(!none.disable_a11y_tree);
+        assert!(!none.has_recording_override());
+
+        let with_flag = record_sources(["screenpipe", "record", "--disable-a11y-tree"]);
+        assert!(with_flag.disable_a11y_tree);
+        assert!(
+            with_flag.has_recording_override(),
+            "--disable-a11y-tree alone must mark a recording override for persistence"
+        );
     }
 
     #[test]

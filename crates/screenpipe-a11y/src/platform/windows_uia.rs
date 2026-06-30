@@ -661,9 +661,12 @@ pub fn run_uia_thread(
     let interval_dur = Duration::from_millis(config.tree_capture_interval_ms);
     let mut was_lock_paused = false;
 
-    // Capture initial focused window (no input has happened yet, so input_too_recent is a no-op)
+    // Capture initial focused window (no input has happened yet, so input_too_recent is a no-op).
+    // Gated by `capture_tree` like the main-loop captures (L704/L732) so
+    // `--disable-a11y-tree` skips even this one startup walk; otherwise the
+    // heavy `capture_window_tree` would still run once on the foreground window.
     let initial_hwnd = unsafe { GetForegroundWindow() };
-    if !initial_hwnd.is_invalid() {
+    if config.capture_tree && !initial_hwnd.is_invalid() {
         capture_and_send(
             &uia,
             initial_hwnd,

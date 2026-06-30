@@ -382,6 +382,18 @@ pub struct RecordingSettings {
     #[serde(rename = "disableClickCapture", default)]
     pub disable_click_capture: bool,
 
+    /// Disable the heavy accessibility (UIA/AX) tree walk while keeping the
+    /// lightweight app-switch / window-focus records flowing. Defaults to
+    /// `false` (tree walk ON — preserves existing behavior). When `true`, the
+    /// Windows UIA worker skips `capture_window_tree` (the up-to-10k-element
+    /// walk that can freeze browsers / Slack / Office), but `ui_events` still
+    /// receives `app_switch` / `window_focus` with app_name/window_title so
+    /// per-app dwell time stays measurable. Maps to
+    /// `UiRecorderConfig::enable_tree_walker` → `UiCaptureConfig::capture_tree`.
+    /// Orthogonal to vision: frame/OCR capture follows `disableVision`.
+    #[serde(rename = "disableA11yTree", default)]
+    pub disable_a11y_tree: bool,
+
     /// Continue recording audio when the screen is locked.
     /// Default: false (audio pauses when screen is locked to save resources).
     #[serde(rename = "recordWhileLocked", default)]
@@ -668,6 +680,7 @@ impl Default for RecordingSettings {
             disable_clipboard_capture: true,
             disable_keyboard_capture: true,
             disable_click_capture: false,
+            disable_a11y_tree: false,
             record_while_locked: false,
             languages: vec![],
             use_pii_removal: false,
