@@ -394,6 +394,16 @@ pub struct RecordingSettings {
     #[serde(rename = "disableA11yTree", default)]
     pub disable_a11y_tree: bool,
 
+    /// Cap the number of accessibility (UIA/AX) elements walked per window
+    /// tree. `None` (default) keeps the built-in cap of 10000. Lowering it
+    /// (e.g. 2000) bounds the per-window walk cost linearly without turning the
+    /// tree walk off entirely — the middle ground between full walk and
+    /// `disableA11yTree`. Ignored when `disableA11yTree` is `true` (the walk
+    /// does not run at all). Maps to `UiRecorderConfig::tree_max_elements` →
+    /// `UiCaptureConfig::tree_max_elements`.
+    #[serde(rename = "treeMaxElements", default)]
+    pub tree_max_elements: Option<usize>,
+
     /// Continue recording audio when the screen is locked.
     /// Default: false (audio pauses when screen is locked to save resources).
     #[serde(rename = "recordWhileLocked", default)]
@@ -681,6 +691,7 @@ impl Default for RecordingSettings {
             disable_keyboard_capture: true,
             disable_click_capture: false,
             disable_a11y_tree: false,
+            tree_max_elements: None,
             record_while_locked: false,
             languages: vec![],
             use_pii_removal: false,

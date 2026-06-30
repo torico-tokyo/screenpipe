@@ -114,6 +114,11 @@ pub struct RecordingConfig {
     /// (→ `UiCaptureConfig::capture_tree`). See
     /// `RecordingSettings.disable_a11y_tree`.
     pub disable_a11y_tree: bool,
+    /// Cap on a11y elements walked per window tree (`None` = built-in 10000).
+    /// Maps to `UiRecorderConfig::tree_max_elements` →
+    /// `UiCaptureConfig::tree_max_elements`. See
+    /// `RecordingSettings.tree_max_elements`.
+    pub tree_max_elements: Option<usize>,
     pub languages: Vec<Language>,
 
     // Cloud/auth
@@ -326,6 +331,7 @@ impl RecordingConfig {
             disable_keyboard_capture: settings.disable_keyboard_capture,
             disable_click_capture: settings.disable_click_capture,
             disable_a11y_tree: settings.disable_a11y_tree,
+            tree_max_elements: settings.tree_max_elements,
             languages: settings
                 .languages
                 .iter()
@@ -428,6 +434,14 @@ impl RecordingConfig {
             // `UiRecorderConfig::to_ui_config`. app_switch / window_focus are
             // emitted independently (see platform/windows.rs) and are unaffected.
             enable_tree_walker: !self.disable_a11y_tree,
+            // `--tree-max-elements` / `treeMaxElements`: cap the per-window a11y
+            // walk. `None` keeps the built-in 10000 so existing behavior is
+            // unchanged. Forwarded to `UiCaptureConfig::tree_max_elements` in
+            // `UiRecorderConfig::to_ui_config`. Only effective while the tree
+            // walk runs (i.e. not when `disable_a11y_tree`).
+            tree_max_elements: self
+                .tree_max_elements
+                .unwrap_or(defaults.tree_max_elements),
             record_input_events: true,
             excluded_windows: self.ignored_windows.clone(),
             ignored_windows: self.ignored_windows.clone(),
@@ -713,6 +727,27 @@ mod tests {
         assert!(
             cap.capture_window_focus,
             "window_focus must keep flowing when the tree walk is disabled"
+        );
+    }
+
+    #[test]
+    fn tree_max_elements_flows_to_ui_capture_config() {
+        // Default: None keeps the built-in 10000 (no regression).
+        let ui = build(&screenpipe_config::RecordingSettings::default()).to_ui_recorder_config();
+        assert_eq!(ui.tree_max_elements, 10000);
+        assert_eq!(ui.to_ui_config().tree_max_elements, 10000);
+
+        // Explicit cap reaches UiCaptureConfig (the value the UIA worker reads).
+        let settings = screenpipe_config::RecordingSettings {
+            tree_max_elements: Some(2000),
+            ..Default::default()
+        };
+        let ui = build(&settings).to_ui_recorder_config();
+        assert_eq!(ui.tree_max_elements, 2000);
+        assert_eq!(
+            ui.to_ui_config().tree_max_elements,
+            2000,
+            "tree_max_elements must reach UiCaptureConfig so the UIA walk is capped"
         );
     }
 
