@@ -122,6 +122,18 @@ pub struct UiCaptureConfig {
     #[serde(skip)]
     pub included_window_patterns: Vec<WindowPattern>,
 
+    /// App/window names whose heavy a11y TREE WALK is skipped, while their
+    /// focus / app-switch records are kept. Supports `App::Title` scoping (see
+    /// `screenpipe-core::window_pattern`). Set via record `--no-a11y-tree-windows`.
+    /// Unlike `ignored_windows` (which drops ALL a11y capture for the app), this
+    /// only skips `capture_window_tree` for the matching app/window.
+    #[serde(default)]
+    pub no_tree_walk_windows: Vec<String>,
+
+    /// Cached parse of `no_tree_walk_windows`. See `ignored_window_patterns`.
+    #[serde(skip)]
+    pub no_tree_walk_window_patterns: Vec<WindowPattern>,
+
     // === Retention Settings ===
     /// Days to keep UI events
     pub retention_days: u32,
@@ -240,6 +252,8 @@ impl Default for UiCaptureConfig {
             included_windows: Vec::new(),
             ignored_window_patterns: Vec::new(),
             included_window_patterns: Vec::new(),
+            no_tree_walk_windows: Vec::new(),
+            no_tree_walk_window_patterns: Vec::new(),
 
             // Retention
             retention_days: 30,
@@ -282,6 +296,7 @@ impl UiCaptureConfig {
             .collect();
         self.ignored_window_patterns = WindowPattern::parse_list(&self.ignored_windows);
         self.included_window_patterns = WindowPattern::parse_list(&self.included_windows);
+        self.no_tree_walk_window_patterns = WindowPattern::parse_list(&self.no_tree_walk_windows);
     }
 
     /// Lazily resolve lowercased excluded-app patterns.
@@ -317,6 +332,33 @@ impl UiCaptureConfig {
         } else {
             std::borrow::Cow::Borrowed(&self.included_window_patterns)
         }
+    }
+
+    /// Lazily resolve the parsed no-tree-walk patterns. See `resolved_ignored`.
+    fn resolved_no_tree_walk(&self) -> std::borrow::Cow<'_, [WindowPattern]> {
+        if self.no_tree_walk_window_patterns.is_empty() && !self.no_tree_walk_windows.is_empty() {
+            std::borrow::Cow::Owned(WindowPattern::parse_list(&self.no_tree_walk_windows))
+        } else {
+            std::borrow::Cow::Borrowed(&self.no_tree_walk_window_patterns)
+        }
+    }
+
+    /// Whether the heavy a11y TREE WALK should run for this app/window.
+    ///
+    /// Returns `false` when `(app, title)` matches a `no_tree_walk_windows`
+    /// pattern (record `--no-a11y-tree-windows`), so the caller skips
+    /// `capture_window_tree` while focus / app-switch records keep flowing.
+    /// This is per-app and distinct from `should_capture_target`, which gates
+    /// ALL a11y capture for a target. With an empty list the walk always runs
+    /// (no behavior change).
+    pub fn should_walk_tree(&self, app_name: &str, window_title: Option<&str>) -> bool {
+        let patterns = self.resolved_no_tree_walk();
+        if patterns.is_empty() {
+            return true;
+        }
+        let app_lower = app_name.to_lowercase();
+        let title_lower = window_title.unwrap_or_default().to_lowercase();
+        !window_pattern::matches_any(&patterns, &app_lower, &title_lower)
     }
 
     /// Check if an app should be captured. Called before window title is known,
@@ -570,6 +612,42 @@ mod tests {
         assert!(!config.should_capture_target("Greenhouse", Some("Compensation")));
         assert!(config.should_capture_target("Slack", Some("#general")));
         assert!(config.should_capture_target("Chrome", Some("Docs")));
+    }
+
+    #[test]
+    fn should_walk_tree_is_per_app_and_defaults_to_true() {
+        // Empty list: the tree walk runs for everything (no behavior change).
+        let mut config = UiCaptureConfig::new();
+        assert!(config.should_walk_tree("waterfox.exe", Some("Bank")));
+        assert!(config.should_walk_tree("Code", None));
+
+        // `--no-a11y-tree-windows Waterfox Firefox`: only matching apps skip the
+        // tree walk; case-insensitive substring matches the process name.
+        config.no_tree_walk_windows = vec!["Waterfox".to_string(), "Firefox".to_string()];
+        config.compile_patterns();
+        assert!(!config.should_walk_tree("waterfox.exe", Some("anything")));
+        assert!(!config.should_walk_tree("Mozilla Firefox", Some("News")));
+        // Other apps still walk — this is the whole point vs global --disable-a11y-tree.
+        assert!(config.should_walk_tree("Code", Some("main.rs")));
+        assert!(config.should_walk_tree("Slack", Some("#general")));
+    }
+
+    #[test]
+    fn should_walk_tree_supports_app_title_scoping() {
+        // `Firefox::Bank` skips the walk only for that window of Firefox; other
+        // Firefox windows still walk. Exercise both the cached and lazy paths.
+        let mut cached = UiCaptureConfig::new();
+        cached.no_tree_walk_windows = vec!["Firefox::Bank".to_string()];
+        cached.compile_patterns();
+
+        let mut lazy = UiCaptureConfig::new();
+        lazy.no_tree_walk_windows = vec!["Firefox::Bank".to_string()]; // no compile — lazy fallback
+
+        for cfg in [&cached, &lazy] {
+            assert!(!cfg.should_walk_tree("Firefox", Some("My Bank - Login")));
+            assert!(cfg.should_walk_tree("Firefox", Some("News")));
+            assert!(cfg.should_walk_tree("Chrome", Some("Bank")));
+        }
     }
 
     #[test]

@@ -344,6 +344,14 @@ pub struct RecordingSettings {
     #[serde(rename = "includedWindows")]
     pub included_windows: Vec<String>,
 
+    /// Apps/windows whose a11y (UIA/AX) tree walk is skipped while their
+    /// app-switch / window-focus records are kept. The per-app form of
+    /// `disableA11yTree`. Supports `App::Title` scoping. Unlike `ignoredWindows`
+    /// (which drops ALL a11y capture for the app), this only stops the heavy
+    /// tree walk. Maps to `UiCaptureConfig::no_tree_walk_windows`.
+    #[serde(rename = "noA11yTreeWindows", default)]
+    pub no_a11y_tree_windows: Vec<String>,
+
     /// URLs to exclude from capture.
     #[serde(rename = "ignoredUrls", default)]
     pub ignored_urls: Vec<String>,
@@ -694,6 +702,7 @@ impl Default for RecordingSettings {
             pause_extraction_on_input_ms: default_pause_extraction_on_input_ms(),
             ignored_windows: vec![],
             included_windows: vec![],
+            no_a11y_tree_windows: vec![],
             ignored_urls: vec![],
             ignore_incognito_windows: true,
             pause_on_drm_content: false,

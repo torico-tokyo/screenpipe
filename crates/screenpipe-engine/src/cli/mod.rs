@@ -539,6 +539,16 @@ pub struct RecordArgs {
     #[arg(long)]
     pub included_windows: Vec<String>,
 
+    /// Apps/windows whose accessibility (UIA/AX) tree walk is skipped while
+    /// app-switch / window-focus records keep flowing — the per-app form of
+    /// `--disable-a11y-tree`. Case-insensitive contains; use `App::Title` to
+    /// scope to one window (e.g. `Firefox::Bank`). Repeat the flag for several
+    /// apps (e.g. `--no-a11y-tree-windows Waterfox --no-a11y-tree-windows Firefox`).
+    /// Unlike `--ignored-windows` (which drops ALL a11y capture for the app),
+    /// this only stops the heavy tree walk. Windows UIA only.
+    #[arg(long)]
+    pub no_a11y_tree_windows: Vec<String>,
+
     /// URLs to ignore for browser privacy filtering
     #[arg(long)]
     pub ignored_urls: Vec<String>,
@@ -814,6 +824,7 @@ pub struct RecordArgSources {
     pub disable_vision: bool,
     pub ignored_windows: bool,
     pub included_windows: bool,
+    pub no_a11y_tree_windows: bool,
     pub ignored_urls: bool,
     pub ignored_meeting_apps: bool,
     pub deepgram_api_key: bool,
@@ -870,6 +881,7 @@ impl RecordArgSources {
             disable_vision: from_command_line(record, "disable_vision"),
             ignored_windows: from_command_line(record, "ignored_windows"),
             included_windows: from_command_line(record, "included_windows"),
+            no_a11y_tree_windows: from_command_line(record, "no_a11y_tree_windows"),
             ignored_urls: from_command_line(record, "ignored_urls"),
             ignored_meeting_apps: from_command_line(record, "ignored_meeting_apps"),
             deepgram_api_key: from_command_line(record, "deepgram_api_key"),
@@ -918,6 +930,7 @@ impl RecordArgSources {
             || self.disable_vision
             || self.ignored_windows
             || self.included_windows
+            || self.no_a11y_tree_windows
             || self.ignored_urls
             || self.ignored_meeting_apps
             || self.deepgram_api_key
@@ -1055,6 +1068,7 @@ impl RecordArgs {
             excluded_windows: self.ignored_windows.clone(),
             ignored_windows: self.ignored_windows.clone(),
             included_windows: self.included_windows.clone(),
+            no_a11y_tree_windows: self.no_a11y_tree_windows.clone(),
             // Keep operation detection alive when clipboard-triggered capture
             // is enabled, but do not store rows/content when the user opted out.
             capture_clipboard: !self.disable_clipboard_capture || capture_on_clipboard,
@@ -1118,6 +1132,7 @@ impl RecordArgs {
             use_all_monitors: self.use_all_monitors && self.monitor_id.is_empty(),
             ignored_windows: self.ignored_windows.clone(),
             included_windows: self.included_windows.clone(),
+            no_a11y_tree_windows: self.no_a11y_tree_windows.clone(),
             ignored_urls: self.ignored_urls.clone(),
             ignored_meeting_apps: self.ignored_meeting_apps.clone(),
             languages: self
@@ -1410,6 +1425,9 @@ impl RecordArgs {
         }
         if sources.included_windows {
             settings.included_windows = self.included_windows.clone();
+        }
+        if sources.no_a11y_tree_windows {
+            settings.no_a11y_tree_windows = self.no_a11y_tree_windows.clone();
         }
         if sources.ignored_urls {
             settings.ignored_urls = self.ignored_urls.clone();

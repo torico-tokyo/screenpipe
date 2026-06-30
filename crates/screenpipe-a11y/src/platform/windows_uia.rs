@@ -940,6 +940,19 @@ fn capture_and_send(
         return;
     }
 
+    // Per-app tree-walk opt-out (`--no-a11y-tree-windows`): skip ONLY the heavy
+    // tree walk for matching apps/windows (e.g. Waterfox/Firefox with huge DOM
+    // trees). Focus / app-switch records come from the focus-change subscription,
+    // which is independent of this walk, so they keep flowing for these apps —
+    // unlike `ignored_windows`, which drops all a11y capture for the target.
+    if !config.should_walk_tree(&app_name, window_title.as_deref()) {
+        trace!(
+            "Skipping a11y tree walk for '{}' (matched --no-a11y-tree-windows)",
+            app_name
+        );
+        return;
+    }
+
     // Skip the full-subtree walk for apps with fragile UIA providers that crash their
     // own host process when we materialize the tree (e.g. Outlook Classic on Sent
     // Items — see is_fragile_uia_tree_provider). Other event capture and OCR are
