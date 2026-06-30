@@ -31,7 +31,7 @@ export type PlatformPackage = {
 export const PACKAGES: PlatformPackage[] = [
   {
     dir: "screenpipe-darwin-arm64",
-    name: "@torico-tokyo/cli-darwin-arm64",
+    name: "@torico/cli-darwin-arm64",
     os: "darwin",
     arch: "arm64",
     bin: "bin/screenpipe",
@@ -39,7 +39,7 @@ export const PACKAGES: PlatformPackage[] = [
   },
   {
     dir: "screenpipe-darwin-x64",
-    name: "@torico-tokyo/cli-darwin-x64",
+    name: "@torico/cli-darwin-x64",
     os: "darwin",
     arch: "x64",
     bin: "bin/screenpipe",
@@ -47,7 +47,7 @@ export const PACKAGES: PlatformPackage[] = [
   },
   {
     dir: "screenpipe-linux-x64",
-    name: "@torico-tokyo/cli-linux-x64",
+    name: "@torico/cli-linux-x64",
     os: "linux",
     arch: "x64",
     bin: "bin/screenpipe",
@@ -55,7 +55,7 @@ export const PACKAGES: PlatformPackage[] = [
   },
   {
     dir: "screenpipe-win32-x64",
-    name: "@torico-tokyo/cli-win32-x64",
+    name: "@torico/cli-win32-x64",
     os: "win32",
     arch: "x64",
     bin: "bin/screenpipe.exe",
@@ -65,7 +65,7 @@ export const PACKAGES: PlatformPackage[] = [
 
 export const WRAPPER = {
   dir: "screenpipe",
-  name: "@torico-tokyo/screenpipe",
+  name: "@torico/screenpipe",
   bin: "lib/cli.js",
 };
 

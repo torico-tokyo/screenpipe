@@ -1,5 +1,5 @@
 {
-  "name": "@torico-tokyo/cli-darwin-x64",
+  "name": "@torico/cli-darwin-x64",
   "version": "0.1.0",
   "description": "screenpipe CLI binary for macOS x64",
   "os": ["darwin"],

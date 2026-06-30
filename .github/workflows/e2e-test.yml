@@ -6,11 +6,13 @@ env:
   CARGO_PROFILE_DEV_DEBUG: "0"
   CARGO_PROFILE_DEV_CODEGEN_UNITS: "16"
 
+# torico fork: this is the desktop Tauri app E2E suite (~3h of runner time per
+# run across macOS/Linux/Windows). The fork only ships the patched CLI npm
+# package, never the app, so running it on every push/PR is pure waste and the
+# macOS leg is also broken by the macos-latest (macOS 26 / Xcode 26.5) runner
+# regression. Disabled to manual-only; re-enable push/pull_request triggers if
+# the fork ever starts touching the desktop app again.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:

@@ -114,7 +114,7 @@ export async function startVerdaccio(
       `    file: ${path.join(workDir, "htpasswd")}`,
       "uplinks: {}",
       "packages:",
-      "  '@torico-tokyo/*':",
+      "  '@torico/*':",
       "    access: $all",
       "    publish: $all",
       "    unpublish: $all",

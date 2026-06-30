@@ -1,6 +1,6 @@
 #!/bin/sh
 # postinstall script — ensures runtime dependencies are present
-# Runs automatically after `npm install @torico-tokyo/screenpipe` or `bunx @torico-tokyo/screenpipe`
+# Runs automatically after `npm install @torico/screenpipe` or `bunx @torico/screenpipe`
 
 set -e
 
@@ -69,9 +69,9 @@ install_linux_deps() {
 # Remove macOS quarantine from the binary
 remove_quarantine() {
     if [ "$(uname)" = "Darwin" ]; then
-        # Find the platform package binary. The wrapper (@torico-tokyo/screenpipe)
-        # and the platform packages (@torico-tokyo/cli-*) are siblings under the
-        # same npm scope dir (node_modules/@torico-tokyo/), so resolve from there.
+        # Find the platform package binary. The wrapper (@torico/screenpipe)
+        # and the platform packages (@torico/cli-*) are siblings under the
+        # same npm scope dir (node_modules/@torico/), so resolve from there.
         SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
         PKG_DIR=$(dirname "$SCRIPT_DIR")
         SCOPE_DIR=$(dirname "$PKG_DIR")
@@ -101,6 +101,6 @@ fi
 remove_quarantine
 
 # NOTE: upstream PostHog install telemetry (cli_install_npm) removed for the
-# @torico-tokyo fork — internal distribution must not report installs to mediar.
+# @torico fork — internal distribution must not report installs to mediar.
 
 echo "screenpipe: ready! run: screenpipe status"
